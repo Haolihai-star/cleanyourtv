@@ -28,35 +28,21 @@ jobs:
       - name: Accept SDK licenses
         run: yes | sdkmanager --licenses
 
-      - name: Make gradlew executable
-        run: chmod +x launcher/gradlew
-
-      - name: Gradle cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('launcher/gradle/wrapper/gradle-wrapper.properties') }}
-
-      - name: Replace maven repo (换成阿里云，解决github拉google依赖超时失败)
+      - name: Enter launcher and run original build script
         run: |
-          sed -i 's|https://maven.google.com|https://maven.aliyun.com/repository/google|g' launcher/build.gradle
-          sed -i 's|https://repo1.maven.org/maven2|https://maven.aliyun.com/repository/public|g' launcher/build.gradle
+          cd launcher
+          chmod +x build-and-install.sh
+          ./build-and-install.sh
+        env:
+          # 告诉脚本：不要尝试adb安装（github机器没有adb连电视）
+          SKIP_ADB_INSTALL: true
 
-      - name: Clean + Build Debug（先从debug包试，成功率更高）
-        working-directory: ./launcher
-        run: |
-          ./gradlew clean
-          ./gradlew assembleDebug
-        continue-on-error: false
-
-      - name: Debug list all files
-        run: find launcher/build -type f
+      - name: Find generated apk
+        run: find launcher -name "*.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: tvhome-apk
-          path: launcher/build/outputs/apk/debug/launcher-debug.apk
+          path: launcher/*.apk
           retention-days: 90
