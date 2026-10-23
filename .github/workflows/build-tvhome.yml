@@ -20,22 +20,36 @@ jobs:
       - name: Setup Android SDK 34
         uses: android-actions/setup-android@v4
         with:
+          accept-android-sdk-licenses: true
           packages: >
             platforms;android-34
             build-tools;34.0.0
             platform-tools
 
-      - name: Accept SDK licenses
-        run: yes | sdkmanager --licenses
-
-      - name: Enter launcher and run original build script
+      - name: Create gradle init script for aliyun mirror
         run: |
-          cd launcher
-          chmod +x build-and-install.sh
-          ./build-and-install.sh
-        env:
-          # 告诉脚本：不要尝试adb安装（github机器没有adb连电视）
-          SKIP_ADB_INSTALL: true
+          mkdir -p ~/.gradle
+          cat > ~/.gradle/init.gradle <<'EOF'
+          allprojects {
+              repositories {
+                  maven { url 'https://maven.aliyun.com/repository/google' }
+                  maven { url 'https://maven.aliyun.com/repository/public' }
+                  maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+                  google()
+                  mavenCentral()
+              }
+          }
+          EOF
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          daemon: false
+          cache-encryption-key: ${{ secrets.GRADLE_CACHE_KEY }}
+
+      - name: Build Release
+        working-directory: ./launcher
+        run: ./gradlew clean assembleRelease --stacktrace
 
       - name: Find generated apk
         run: find launcher -name "*.apk"
@@ -44,5 +58,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tvhome-apk
-          path: launcher/*.apk
+          path: launcher/build/outputs/apk/release/launcher-release-unsigned.apk
           retention-days: 90
