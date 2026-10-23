@@ -1,7 +1,6 @@
 name: Build tvhome APK (CleanYourTV)
-
 on:
-  workflow_dispatch: # 仅手动触发，最稳
+  workflow_dispatch:
   push:
     branches: [ main ]
 
@@ -32,17 +31,32 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x launcher/gradlew
 
-      - name: Build tvhome release (原版项目打包方式)
+      - name: Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('launcher/gradle/wrapper/gradle-wrapper.properties') }}
+
+      - name: Replace maven repo (换成阿里云，解决github拉google依赖超时失败)
+        run: |
+          sed -i 's|https://maven.google.com|https://maven.aliyun.com/repository/google|g' launcher/build.gradle
+          sed -i 's|https://repo1.maven.org/maven2|https://maven.aliyun.com/repository/public|g' launcher/build.gradle
+
+      - name: Clean + Build Debug（先从debug包试，成功率更高）
         working-directory: ./launcher
-        run: ./gradlew assembleRelease
+        run: |
+          ./gradlew clean
+          ./gradlew assembleDebug
+        continue-on-error: false
 
-      - name: List output dir（调试用，看有没有apk）
-        run: ls -la launcher/build/outputs/apk/release/
+      - name: Debug list all files
+        run: find launcher/build -type f
 
-      - name: Upload tvhome.apk
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: tvhome-apk
-          path: launcher/build/outputs/apk/release/launcher-release-unsigned.apk
+          path: launcher/build/outputs/apk/debug/launcher-debug.apk
           retention-days: 90
-
